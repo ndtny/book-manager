@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.david.bookmanager.repository.BookInfoRepository">
+
+    <!-- 分页查询图书信息 -->
+    <select id="selectBookPage" resultType="com.david.bookmanager.model.BookInfo">
+        SELECT 
+            bi.*,
+            bc.category_name as category_name
+        FROM book_info bi
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        <where>
+            <if test="title != null and title != ''">
+                AND bi.title LIKE CONCAT('%', #{title}, '%')
+            </if>
+            <if test="author != null and author != ''">
+                AND bi.author LIKE CONCAT('%', #{author}, '%')
+            </if>
+            <if test="isbn != null and isbn != ''">
+                AND bi.isbn LIKE CONCAT('%', #{isbn}, '%')
+            </if>
+            <if test="publisher != null and publisher != ''">
+                AND bi.publisher LIKE CONCAT('%', #{publisher}, '%')
+            </if>
+            <if test="categoryId != null">
+                AND bi.category_id = #{categoryId}
+            </if>
+            <if test="status != null">
+                AND bi.status = #{status}
+            </if>
+        </where>
+        ORDER BY bi.create_time DESC
+    </select>
+
+    <!-- 查询库存预警图书（带关联信息） -->
+    <select id="selectWarningBooksWithDetails" resultType="com.david.bookmanager.model.BookInfo">
+        SELECT 
+            bi.*,
+            bc.category_name as category_name,
+            (bi.total_quantity - bi.available_quantity) as borrowed_quantity
+        FROM book_info bi
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        WHERE bi.status = 1 
+        AND bi.available_quantity <![CDATA[<=]]> #{threshold}
+        ORDER BY bi.available_quantity ASC
+    </select>
+
+</mapper> 

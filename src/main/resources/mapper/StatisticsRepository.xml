@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.david.bookmanager.repository.StatisticsRepository">
+
+    <!-- 获取借阅统计概览 -->
+    <select id="selectBorrowStatistics" resultType="com.david.bookmanager.dto.BorrowStatisticsDto">
+        <![CDATA[
+        SELECT
+                (SELECT COUNT(*) FROM borrow_record) AS totalBorrows,
+                (SELECT COUNT(*) FROM borrow_record WHERE status = 1) AS currentBorrows,
+                (SELECT COUNT(*) FROM borrow_record WHERE status = 3) AS overdueCount
+        ]]>
+    </select>
+
+    <!-- 获取今日借阅数量 -->
+    <select id="selectTodayBorrowCount" resultType="java.lang.Long">
+        <![CDATA[
+        SELECT COUNT(*) FROM borrow_record
+        WHERE DATE(borrow_date) = DATE(#{today})
+        ]]>
+    </select>
+
+    <!-- 获取本月借阅数量 -->
+    <select id="selectMonthBorrowCount" resultType="java.lang.Long">
+        <![CDATA[
+        SELECT COUNT(*) FROM borrow_record
+        WHERE borrow_date BETWEEN #{startOfMonth} AND #{endOfMonth}
+        ]]>
+    </select>
+
+    <!-- 获取借阅趋势数据 -->
+    <select id="selectBorrowTrend" resultType="com.david.bookmanager.dto.TrendDataDto">
+        <![CDATA[
+        SELECT
+            DATE(#{startDate} + INTERVAL (a.a + (10 * b.a) + (100 * c.a)) DAY) AS `date`,
+            COALESCE(borrow_counts.borrow_count, 0) AS `value`,
+            DATE(#{startDate} + INTERVAL (a.a + (10 * b.a) + (100 * c.a)) DAY) AS `label`
+        FROM (SELECT 0 AS a UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS a
+        CROSS JOIN (SELECT 0 AS a UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS b
+        CROSS JOIN (SELECT 0 AS a UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS c
+        LEFT JOIN (
+            SELECT
+                DATE(borrow_date) AS borrow_date,
+                COUNT(*) AS borrow_count
+            FROM borrow_record
+            WHERE borrow_date BETWEEN #{startDate} AND #{endDate}
+            GROUP BY DATE(borrow_date)
+        ) AS borrow_counts ON DATE(#{startDate} + INTERVAL (a.a + (10 * b.a) + (100 * c.a)) DAY) = borrow_counts.borrow_date
+        WHERE DATE(#{startDate} + INTERVAL (a.a + (10 * b.a) + (100 * c.a)) DAY) <= DATE(#{endDate})
+        ORDER BY `date`
+        ]]>
+    </select>
+
+    <!-- 获取分类借阅统计 -->
+    <select id="selectCategoryBorrowStatistics" resultType="com.david.bookmanager.dto.CategoryBorrowDto">
+        <![CDATA[
+        SELECT
+            bc.category_name AS categoryName,
+            COUNT(br.id) AS borrowCount,
+            ROUND(COUNT(br.id) * 100.0 / (SELECT COUNT(*) FROM borrow_record), 2) AS percentage
+        FROM borrow_record br
+                 LEFT JOIN book_info bi ON br.book_id = bi.id
+                 LEFT JOIN book_category bc ON bi.category_id = bc.id
+        GROUP BY bc.id, bc.category_name
+        ORDER BY borrowCount DESC
+        ]]>
+    </select>
+
+    <!-- 获取用户活跃度统计 -->
+    <select id="selectUserActivityStatistics" resultType="com.david.bookmanager.dto.UserActivityStatisticsDto">
+        <![CDATA[
+        SELECT
+                (SELECT COUNT(*) FROM `user` WHERE status = 1) AS totalUsers,
+                (SELECT COUNT(DISTINCT user_id) FROM borrow_record WHERE borrow_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS activeUsers,
+                (SELECT COUNT(*) FROM `user` WHERE DATE(create_time) = CURDATE()) AS newUsers
+        ]]>
+    </select>
+
+    <!-- 获取用户活跃度排行 -->
+    <select id="selectUserActivityRanking" resultType="com.david.bookmanager.dto.UserActivityDto">
+        <![CDATA[
+        SELECT
+            u.id AS userId,
+            u.username,
+            u.real_name AS realName,
+            COUNT(br.id) AS borrowCount,
+            ROUND(COUNT(br.id) * 10.0 / (SELECT COUNT(*) FROM borrow_record), 2) AS activityScore
+        FROM `user` u
+                 LEFT JOIN borrow_record br ON u.id = br.user_id
+        WHERE u.status = 1
+        GROUP BY u.id, u.username, u.real_name
+        ORDER BY borrowCount DESC
+            LIMIT #{limit}
+        ]]>
+    </select>
+
+    <!-- 获取用户注册趋势 -->
+    <select id="selectUserRegistrationTrend" resultType="com.david.bookmanager.dto.TrendDataDto">
+        <![CDATA[
+        SELECT
+            DATE(create_time) AS `date`,
+            COUNT(*) AS `value`,
+            DATE(create_time) AS `label`
+        FROM `user`
+        WHERE create_time BETWEEN #{startDate} AND #{endDate}
+        GROUP BY DATE(create_time)
+        ORDER BY `date`
+        ]]>
+    </select>
+
+    <!-- 获取库存统计概览 -->
+    <select id="selectInventoryStatistics" resultType="com.david.bookmanager.dto.InventoryStatisticsDto">
+        <![CDATA[
+        SELECT
+            COUNT(*) AS totalBookTypes,
+            SUM(total_quantity) AS totalQuantity,
+            SUM(available_quantity) AS availableQuantity,
+            (SELECT COUNT(*) FROM book_info WHERE available_quantity <= 5 AND status = 1) AS warningCount,
+            ROUND((SUM(total_quantity) - SUM(available_quantity)) * 100.0 / SUM(total_quantity), 2) AS turnoverRate
+        FROM book_info
+        WHERE status = 1
+        ]]>
+    </select>
+
+    <!-- 获取分类库存统计 -->
+    <select id="selectCategoryInventoryStatistics" resultType="com.david.bookmanager.dto.CategoryInventoryDto">
+        <![CDATA[
+        SELECT
+            bc.category_name AS categoryName,
+            COUNT(bi.id) AS bookTypeCount,
+            SUM(bi.total_quantity) AS totalQuantity,
+            SUM(bi.available_quantity) AS availableQuantity
+        FROM book_info bi
+                 LEFT JOIN book_category bc ON bi.category_id = bc.id
+        WHERE bi.status = 1
+        GROUP BY bc.id, bc.category_name
+        ORDER BY totalQuantity DESC
+        ]]>
+    </select>
+
+    <!-- 获取热门图书统计 -->
+    <select id="selectPopularBooks" resultType="com.david.bookmanager.dto.PopularBookDto">
+        <![CDATA[
+        SELECT
+            bi.id AS bookId,
+            bi.title AS bookTitle,
+            bi.author,
+            COUNT(br.id) AS borrowCount,
+            (@row_number:=@row_number + 1) AS ranking
+        FROM book_info bi
+                 LEFT JOIN borrow_record br ON bi.id = br.book_id,
+             (SELECT @row_number:=0) AS r
+        WHERE bi.status = 1
+        GROUP BY bi.id, bi.title, bi.author
+        ORDER BY borrowCount DESC
+            LIMIT #{limit}
+        ]]>
+    </select>
+
+    <!-- 获取图书借阅排行 -->
+    <select id="selectBookRanking" resultType="com.david.bookmanager.dto.BookRankingDto">
+        <![CDATA[
+        SELECT
+            bi.id AS bookId,
+            bi.title AS bookTitle,
+            bi.author,
+            bc.category_name AS categoryName,
+            COUNT(br.id) AS borrowCount,
+            (@row_number:=@row_number + 1) AS ranking
+        FROM book_info bi
+                 LEFT JOIN book_category bc ON bi.category_id = bc.id
+                 LEFT JOIN borrow_record br ON bi.id = br.book_id,
+             (SELECT @row_number:=0) AS r
+        WHERE bi.status = 1
+        GROUP BY bi.id, bi.title, bi.author, bc.category_name
+        ORDER BY borrowCount DESC
+            LIMIT #{limit}
+        ]]>
+    </select>
+
+    <!-- 获取借阅统计详情（用于导出） -->
+    <select id="selectBorrowStatisticsForExport" resultType="java.util.Map">
+        <![CDATA[
+        SELECT
+            bi.title AS name,
+            COUNT(br.id) AS count,
+            ROUND(COUNT(br.id) * 100.0 / (SELECT COUNT(*) FROM borrow_record), 2) AS percentage,
+            bi.author AS remark
+        FROM borrow_record br
+            LEFT JOIN book_info bi ON br.book_id = bi.id
+        WHERE br.borrow_date BETWEEN #{startDate} AND #{endDate}
+        GROUP BY bi.id, bi.title, bi.author
+        ORDER BY count DESC
+        ]]>
+    </select>
+
+    <!-- 获取用户统计详情（用于导出） -->
+    <select id="selectUserStatisticsForExport" resultType="java.util.Map">
+        <![CDATA[
+        SELECT
+            u.real_name AS name,
+            COUNT(br.id) AS count,
+            ROUND(COUNT(br.id) * 100.0 / (SELECT COUNT(*) FROM borrow_record), 2) AS percentage,
+            u.username AS remark
+        FROM `user` u
+            LEFT JOIN borrow_record br ON u.id = br.user_id
+        WHERE u.create_time BETWEEN #{startDate} AND #{endDate}
+        GROUP BY u.id, u.real_name, u.username
+        ORDER BY count DESC
+        ]]>
+    </select>
+
+    <!-- 获取库存统计详情（用于导出） -->
+    <select id="selectInventoryStatisticsForExport" resultType="java.util.Map">
+        <![CDATA[
+        SELECT
+            bi.title AS name,
+            bi.total_quantity AS count,
+            ROUND(bi.available_quantity * 100.0 / bi.total_quantity, 2) AS percentage,
+            bi.author AS remark
+        FROM book_info bi
+        WHERE bi.status = 1
+        ORDER BY bi.total_quantity DESC
+        ]]>
+    </select>
+
+</mapper>

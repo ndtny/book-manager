@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.david.bookmanager.repository.InventoryRecordRepository">
+
+    <!-- 查询库存变动记录（带关联信息） -->
+    <select id="selectInventoryRecordPage" resultType="com.david.bookmanager.model.InventoryRecord">
+        SELECT
+            ir.*,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name,
+            u.username as operator_name,
+            u.real_name as operator_real_name
+        FROM inventory_record ir
+        LEFT JOIN book_info bi ON ir.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        LEFT JOIN user u ON ir.operator_id = u.id
+        <where>
+            <if test="bookId != null">
+                AND ir.book_id = #{bookId}
+            </if>
+            <if test="changeType != null">
+                AND ir.change_type = #{changeType}
+            </if>
+        </where>
+        ORDER BY ir.create_time DESC
+    </select>
+
+    <!-- 查询图书的库存变动记录 -->
+    <select id="selectByBookId" resultType="com.david.bookmanager.model.InventoryRecord">
+        SELECT
+            ir.*,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            u.username as operator_name,
+            u.real_name as operator_real_name
+        FROM inventory_record ir
+        LEFT JOIN book_info bi ON ir.book_id = bi.id
+        LEFT JOIN user u ON ir.operator_id = u.id
+        WHERE ir.book_id = #{bookId}
+        ORDER BY ir.create_time DESC
+    </select>
+
+    <!-- 查询指定类型的库存变动记录 -->
+    <select id="selectByChangeType" resultType="com.david.bookmanager.model.InventoryRecord">
+        SELECT
+            ir.*,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name,
+            u.username as operator_name,
+            u.real_name as operator_real_name
+        FROM inventory_record ir
+        LEFT JOIN book_info bi ON ir.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        LEFT JOIN user u ON ir.operator_id = u.id
+        WHERE ir.change_type = #{changeType}
+        ORDER BY ir.create_time DESC
+    </select>
+
+    <!-- 统计图书库存变动次数 -->
+    <select id="countByBookId" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM inventory_record
+        WHERE book_id = #{bookId}
+    </select>
+
+    <!-- 统计指定类型的库存变动次数 -->
+    <select id="countByChangeType" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM inventory_record
+        WHERE change_type = #{changeType}
+    </select>
+
+    <!-- 查询最近的库存变动记录 -->
+    <select id="selectRecentRecords" resultType="com.david.bookmanager.model.InventoryRecord">
+        SELECT
+            ir.*,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            u.username as operator_name,
+            u.real_name as operator_real_name
+        FROM inventory_record ir
+        LEFT JOIN book_info bi ON ir.book_id = bi.id
+        LEFT JOIN user u ON ir.operator_id = u.id
+        ORDER BY ir.create_time DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper> 

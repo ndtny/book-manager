@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.david.bookmanager.repository.BorrowRecordRepository">
+
+    <!-- 分页查询借阅记录（带关联信息） -->
+    <select id="selectBorrowRecordPage" resultType="com.david.bookmanager.model.BorrowRecord">
+        SELECT 
+            br.*,
+            u.username,
+            u.real_name,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name
+        FROM borrow_record br
+        LEFT JOIN user u ON br.user_id = u.id
+        LEFT JOIN book_info bi ON br.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        <where>
+            <if test="userId != null">
+                AND br.user_id = #{userId}
+            </if>
+            <if test="bookId != null">
+                AND br.book_id = #{bookId}
+            </if>
+            <if test="status != null">
+                AND br.status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (bi.title LIKE CONCAT('%', #{keyword}, '%')
+                OR bi.author LIKE CONCAT('%', #{keyword}, '%')
+                OR bi.isbn LIKE CONCAT('%', #{keyword}, '%')
+                OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                OR u.real_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY br.create_time DESC
+    </select>
+
+    <!-- 查询用户的当前借阅记录 -->
+    <select id="selectCurrentBorrowsByUserId" resultType="com.david.bookmanager.model.BorrowRecord">
+        SELECT 
+            br.*,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name
+        FROM borrow_record br
+        LEFT JOIN book_info bi ON br.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        WHERE br.user_id = #{userId} AND br.status = 1
+        ORDER BY br.borrow_date DESC
+    </select>
+
+    <!-- 查询用户的借阅历史 -->
+    <select id="selectBorrowHistoryByUserId" resultType="com.david.bookmanager.model.BorrowRecord">
+        SELECT 
+            br.*,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name
+        FROM borrow_record br
+        LEFT JOIN book_info bi ON br.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        WHERE br.user_id = #{userId} AND br.status = 2
+        ORDER BY br.return_date DESC
+    </select>
+
+    <!-- 查询逾期记录 -->
+    <select id="selectOverdueRecords" resultType="com.david.bookmanager.model.BorrowRecord">
+        SELECT 
+            br.*,
+            u.username,
+            u.real_name,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name
+        FROM borrow_record br
+        LEFT JOIN user u ON br.user_id = u.id
+        LEFT JOIN book_info bi ON br.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        WHERE br.status = 1 AND br.due_date &lt; #{currentTime}
+        ORDER BY br.due_date ASC
+    </select>
+
+    <!-- 查询即将到期的记录 -->
+    <select id="selectExpiringRecords" resultType="com.david.bookmanager.model.BorrowRecord">
+        SELECT 
+            br.*,
+            u.username,
+            u.real_name,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name
+        FROM borrow_record br
+        LEFT JOIN user u ON br.user_id = u.id
+        LEFT JOIN book_info bi ON br.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        WHERE br.status = 1 
+        AND br.due_date BETWEEN #{currentTime} 
+        AND DATE_ADD(#{currentTime}, INTERVAL #{expireDays} DAY)
+        ORDER BY br.due_date ASC
+    </select>
+
+    <!-- 统计用户借阅数量 -->
+    <select id="countBorrowsByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM borrow_record 
+        WHERE user_id = #{userId} AND status = 1
+    </select>
+
+    <!-- 统计图书借阅次数 -->
+    <select id="countBorrowsByBookId" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM borrow_record 
+        WHERE book_id = #{bookId}
+    </select>
+
+    <!-- 查询热门图书统计 -->
+    <select id="selectPopularBooks" resultType="com.david.bookmanager.model.BorrowRecord">
+        SELECT 
+            bi.id as book_id,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name,
+            COUNT(br.id) as borrow_count
+        FROM book_info bi
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        LEFT JOIN borrow_record br ON bi.id = br.book_id
+        GROUP BY bi.id, bi.title, bi.author, bi.isbn, bc.category_name
+        ORDER BY borrow_count DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 检查用户是否已借阅该图书 -->
+    <select id="checkUserBorrowedBook" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM borrow_record 
+        WHERE user_id = #{userId} AND book_id = #{bookId} AND status = 1
+    </select>
+
+    <!-- 分页查询借阅记录（带用户和图书信息） -->
+    <select id="selectBorrowRecordsWithDetails" resultType="com.david.bookmanager.model.BorrowRecord">
+        SELECT
+        br.*,
+        u.username,
+        u.real_name,
+        bi.title as book_title,
+        bi.author as book_author,
+        bi.isbn as book_isbn,
+        bc.category_name
+        FROM borrow_record br
+        LEFT JOIN user u ON br.user_id = u.id
+        LEFT JOIN book_info bi ON br.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        <where>
+            <if test="username != null and username != ''">
+                AND (u.username LIKE CONCAT('%', #{username}, '%')
+                OR u.real_name LIKE CONCAT('%', #{username}, '%'))
+            </if>
+            <if test="bookTitle != null and bookTitle != ''">
+                AND (bi.title LIKE CONCAT('%', #{bookTitle}, '%')
+                OR bi.author LIKE CONCAT('%', #{bookTitle}, '%'))
+            </if>
+            <if test="status != null">
+                AND br.status = #{status}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND br.borrow_date >= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND br.borrow_date <![CDATA[<=]]> #{endDate}
+            </if>
+        </where>
+        ORDER BY br.create_time DESC
+    </select>
+
+    <!-- 根据ID列表批量查询借阅记录 -->
+    <select id="selectBatchIds" resultType="com.david.bookmanager.model.BorrowRecord">
+        SELECT 
+            br.*,
+            u.username,
+            u.real_name,
+            bi.title as book_title,
+            bi.author as book_author,
+            bi.isbn as book_isbn,
+            bc.category_name
+        FROM borrow_record br
+        LEFT JOIN user u ON br.user_id = u.id
+        LEFT JOIN book_info bi ON br.book_id = bi.id
+        LEFT JOIN book_category bc ON bi.category_id = bc.id
+        WHERE br.id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY br.create_time DESC
+    </select>
+
+</mapper> 
